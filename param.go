@@ -97,45 +97,23 @@ func (p *Param) TmpVarReadbackCode() string {
 
 // TmpVarHelperCode returns source code for helper's temp variable.
 func (p *Param) TmpVarHelperCode() string {
-	if p.Type != "string" {
-		return ""
-	}
-	return p.StringTmpVarCode()
+	return "var _ string"
 }
 
 // SyscallArgList returns source code fragments representing p parameter
 // in syscall. Slices are translated into 2 syscall parameters: pointer to
 // the first element and length.
-func (p *Param) SyscallArgList() []string {
-	t := p.HelperType()
-	var s string
-	switch {
-	case t == "*bool":
-		s = fmt.Sprintf("unsafe.Pointer(&%s)", p.tmpVar())
-	case t[0] == '*':
-		s = fmt.Sprintf("unsafe.Pointer(%s)", p.Name)
-	case t == "bool":
-		s = p.tmpVar()
-	case strings.HasPrefix(t, "[]"):
-		return []string{
-			fmt.Sprintf("uintptr(unsafe.Pointer(%s))", p.tmpVar()),
-			fmt.Sprintf("uintptr(len(%s))", p.Name),
-		}
-	default:
-		s = p.Name
+func (p *Param) SyscallArg() string {
+	var arg string
+	if !strings.HasPrefix(p.Type, "*") {
+		arg = "&"
 	}
-	return []string{fmt.Sprintf("uintptr(%s)", s)}
+	arg += p.Name
+
+	return "uintptr(unsafe.Pointer(" + arg + "))"
 }
 
 // IsError determines if p parameter is used to return error.
 func (p *Param) IsError() bool {
 	return p.Name == "err" && p.Type == "error"
-}
-
-// HelperType returns type of parameter p used in helper function.
-func (p *Param) HelperType() string {
-	if p.Type == "string" {
-		return p.fn.StrconvType()
-	}
-	return p.Type
 }

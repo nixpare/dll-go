@@ -49,12 +49,17 @@ func (r *Rets) List() string {
 	}
 	
 	s := join(params, func(p *Param) string { return p.Name + " " + p.Type }, ", ")
-	/* if len(s) > 0 {
-		s = "(" + s + ")"
-	} else if r.fnMaybeAbsent {
-		s = "(err error)"
+	return "(" + s + ")"
+}
+
+// FuncList returns source code of helper return parameters.
+func (r *Rets) HelperList() string {
+	params := r.ToParams()
+	if len(params) == 0 {
+		return ""
 	}
-	return s */
+	
+	s := join(params, func(p *Param) string { return p.Name + " " + p.Type }, ", ")
 	return "(" + s + ")"
 }
 
@@ -98,7 +103,6 @@ func (r *Rets) SetErrorCode() string {
 	}`
 	const checkerrno = `if errno != windows.NOERROR {
 		err = errno
-		return
 	}`
 	
 	if r.Name == "" && !r.ReturnsError {

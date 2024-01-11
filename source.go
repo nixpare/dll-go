@@ -35,10 +35,6 @@ func (src *Source) Import(pkg string) {
 }
 
 func (src *Source) ExternalImport(pkg string) {
-	if pkg == "golang.org/x/sys/windows" {
-		return
-	}
-
 	src.ExternalImports = append(src.ExternalImports, pkg)
 	sort.Strings(src.ExternalImports)
 }
@@ -61,7 +57,7 @@ func ParseFiles(fs []string) (*Source, error) {
 	src.DLLFuncNames = make([]*Fn, 0, len(src.Funcs))
 	uniq := make(map[string]bool, len(src.Funcs))
 	for _, fn := range src.Funcs {
-		name := fn.DLLFuncName()
+		name := fn.Name
 		if !uniq[name] {
 			src.DLLFuncNames = append(src.DLLFuncNames, fn)
 			uniq[name] = true
@@ -102,7 +98,7 @@ func (src *Source) ParseFile(path string) error {
 		if len(t) < 7 {
 			continue
 		}
-		if !strings.HasPrefix(t, "//sys") {
+		if !strings.HasPrefix(t, "//dll") {
 			continue
 		}
 		t = t[5:]
@@ -122,7 +118,7 @@ func (src *Source) ParseFile(path string) error {
 	sort.Slice(src.Funcs, func(i, j int) bool {
 		fi, fj := src.Funcs[i], src.Funcs[j]
 		if fi.DLLName() == fj.DLLName() {
-			return fi.DLLFuncName() < fj.DLLFuncName()
+			return fi.Name < fj.Name
 		}
 		return fi.DLLName() < fj.DLLName()
 	})

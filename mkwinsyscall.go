@@ -200,7 +200,7 @@ var _ unsafe.Pointer
 var (
 {{template "dlls" .}}
 {{template "funcnames" .}})
-{{range .Funcs}}{{if .HasStringParam}}{{template "helperbody" .}}{{end}}{{template "funcbody" .}}{{end}}
+{{range .Funcs}}{{template "funcbody" .}}{{template "helperbody" .}}{{end}}
 {{end}}
 
 {{/* help functions */}}
@@ -208,24 +208,22 @@ var (
 {{define "dlls"}}{{range .DLLs}}	mod{{.Var}} = {{newlazydll .Name}}
 {{end}}{{end}}
 
-{{define "funcnames"}}{{range .DLLFuncNames}}	proc{{.DLLFuncName}} = mod{{.DLLVar}}.NewProc("{{.DLLFuncName}}")
+{{define "funcnames"}}{{range .DLLFuncNames}}	proc{{.DLLFuncName}} = mod{{.DLLVar}}.NewProc("_{{.DLLFuncName}}")
 {{end}}{{end}}
 
-{{define "helperbody"}}
-func {{.Name}}({{.ParamList}}) {{template "results" .}}{
-{{template "helpertmpvars" .}}	return {{.HelperName}}({{.HelperCallParamList}})
-}
-{{end}}
-
 {{define "funcbody"}}
-func {{.HelperName}}({{.HelperParamList}}) {{template "results" .}}{
+func {{.DLLFuncName}}({{.ParamList}}) {{template "results" .}}{
 {{template "maybeabsent" .}}	{{template "tmpvars" .}}	{{template "syscall" .}}	{{template "tmpvarsreadback" .}}
 {{template "seterror" .}}{{template "printtrace" .}}	return
 }
 {{end}}
 
-{{define "helpertmpvars"}}{{range .Params}}{{if .TmpVarHelperCode}}	{{.TmpVarHelperCode}}
-{{end}}{{end}}{{end}}
+{{define "helperbody"}}
+//export _{{.DLLFuncName}}
+func _{{.DLLFuncName}}({{.HelperParamList}}) {{template "helperresults" .}}{
+	return {{.Name}}({{.HelperCallParamList}})
+}
+{{end}}
 
 {{define "maybeabsent"}}{{if .MaybeAbsent}}{{.MaybeAbsent}}
 {{end}}{{end}}
@@ -235,6 +233,8 @@ func {{.HelperName}}({{.HelperParamList}}) {{template "results" .}}{
 
 {{define "results"}}{{if .Rets.List}}{{.Rets.List}} {{end}}{{end}}
 
+{{define "helperresults"}}{{if .Rets.List}}{{.Rets.HelperList}} {{end}}{{end}}
+
 {{define "syscall"}}{{.Rets.SetReturnValuesCode}}{{syscalldot}}SyscallN(proc{{.DLLFuncName}}.Addr(), {{.SyscallParamList}}){{end}}
 
 {{define "tmpvarsreadback"}}{{range .Params}}{{if .TmpVarReadbackCode}}
@@ -243,7 +243,7 @@ func {{.HelperName}}({{.HelperParamList}}) {{template "results" .}}{
 {{define "seterror"}}{{if .Rets.SetErrorCode}}	{{.Rets.SetErrorCode}}
 {{end}}{{end}}
 
-{{define "printtrace"}}{{if .PrintTrace}}	print("SYSCALL: {{.Name}}(", {{.ParamPrintList}}") (", {{.Rets.PrintList}}")\n")
+{{define "printtrace"}}{{if .PrintTrace}}	print("SYSCALL: {{.DLLFuncName}}(", {{.ParamPrintList}}") (", {{.Rets.PrintList}}")\n")
 {{end}}{{end}}
 
 `

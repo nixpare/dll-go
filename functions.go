@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"go/token"
-	// "strconv"
 	"strings"
 )
 
@@ -174,10 +173,7 @@ func (f *Fn) DLLVar() string {
 
 // DLLFuncName returns DLL function name for function f.
 func (f *Fn) DLLFuncName() string {
-	if f.dllfuncname == "" {
-		return f.Name
-	}
-	return f.dllfuncname
+	return f.Name + "DLL"
 }
 
 // ParamList returns source code for function f parameters.
@@ -187,7 +183,18 @@ func (f *Fn) ParamList() string {
 
 // HelperParamList returns source code for helper function f parameters.
 func (f *Fn) HelperParamList() string {
-	return join(f.Params, func(p *Param) string { return p.Name + " " + p.HelperType() }, ", ")
+	a := make([]string, 0, len(f.Params))
+	for _, p := range f.Params {
+		var s string
+		s += p.Name + " "
+		if !strings.HasPrefix(p.Type, "*") {
+			s += "*"
+		}
+		s += p.Type
+
+		a = append(a, s)
+	}
+	return strings.Join(a, ", ")
 }
 
 // ParamPrintList returns source code of trace printing part correspondent
@@ -196,59 +203,13 @@ func (f *Fn) ParamPrintList() string {
 	return join(f.Params, func(p *Param) string { return fmt.Sprintf(`"%s=", %s, `, p.Name, p.Name) }, `", ", `)
 }
 
-// ParamCount return number of syscall parameters for function f.
-/* func (f *Fn) ParamCount() int {
-	n := 0
-	for _, p := range f.Params {
-		n += len(p.SyscallArgList())
-	}
-	return n
-} */
-
-// SyscallParamCount determines which version of Syscall/Syscall6/Syscall9/...
-// to use. It returns parameter count for correspondent SyscallX function.
-/* func (f *Fn) SyscallParamCount() int {
-	n := f.ParamCount()
-	switch {
-	case n <= 3:
-		return 3
-	case n <= 6:
-		return 6
-	case n <= 9:
-		return 9
-	case n <= 12:
-		return 12
-	case n <= 15:
-		return 15
-	case n <= 42: // current SyscallN limit
-		return n
-	default:
-		panic("too many arguments to system call")
-	}
-} */
-
-// Syscall determines which SyscallX function to use for function f.
-/* func (f *Fn) Syscall() string {
-	c := f.SyscallParamCount()
-	if c == 3 {
-		return syscalldot() + "Syscall"
-	}
-	if c > 15 {
-		return syscalldot() + "SyscallN"
-	}
-	return syscalldot() + "Syscall" + strconv.Itoa(c)
-	return syscalldot() + "SyscallN"
-} */
-
 // SyscallParamList returns source code for SyscallX parameters for function f.
 func (f *Fn) SyscallParamList() string {
 	a := make([]string, 0)
 	for _, p := range f.Params {
-		a = append(a, p.SyscallArgList()...)
+		a = append(a, p.SyscallArg())
 	}
-	/* for len(a) < f.SyscallParamCount() {
-		a = append(a, "0")
-	} */
+	
 	return strings.Join(a, ", ")
 }
 
@@ -257,9 +218,10 @@ func (f *Fn) HelperCallParamList() string {
 	a := make([]string, 0, len(f.Params))
 	for _, p := range f.Params {
 		s := p.Name
-		if p.Type == "string" {
-			s = p.tmpVar()
+		if !strings.HasPrefix(p.Type, "*") {
+			s = "*" + s
 		}
+
 		a = append(a, s)
 	}
 	return strings.Join(a, ", ")
@@ -278,13 +240,13 @@ func (p *Fn) MaybeAbsent() string {
 	if errorVar == "" {
 		errorVar = "err"
 	}
-	return fmt.Sprintf(code, errorVar, p.DLLFuncName())
+	return fmt.Sprintf(code, errorVar, p.Name)
 }
 
 // IsUTF16 is true, if f is W (utf16) function. It is false
 // for all A (ascii) functions.
 func (f *Fn) IsUTF16() bool {
-	s := f.DLLFuncName()
+	s := f.Name
 	return s[len(s)-1] == 'W'
 }
 
@@ -313,12 +275,4 @@ func (f *Fn) HasStringParam() bool {
 		}
 	}
 	return false
-}
-
-// HelperName returns name of function f helper.
-func (f *Fn) HelperName() string {
-	if !f.HasStringParam() {
-		return f.Name
-	}
-	return "_" + f.Name
 }
