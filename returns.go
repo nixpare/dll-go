@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"strings"
 )
 
@@ -12,17 +13,6 @@ type Rets struct {
 	ReturnsError  bool
 	FailCond      string
 	fnMaybeAbsent bool
-}
-
-// ErrorVarName returns error variable name for r.
-func (r *Rets) ErrorVarName() string {
-	if r.ReturnsError {
-		return "err"
-	}
-	if r.Type == "error" {
-		return r.Name
-	}
-	return ""
 }
 
 // ToParams converts r into slice of *Param.
@@ -63,74 +53,49 @@ func (r *Rets) HelperList() string {
 	return "(" + s + ")"
 }
 
-// PrintList returns source code of trace printing part correspondent
-// to syscall return values.
-func (r *Rets) PrintList() string {
-	return join(r.ToParams(), func(p *Param) string { return fmt.Sprintf(`"%s=", %s, `, p.Name, p.Name) }, `", ", `)
-}
-
 // SetReturnValuesCode returns source code that accepts syscall return values.
 func (r *Rets) SetReturnValuesCode() string {
-	if r.Name == "" && !r.ReturnsError {
+	params := r.ToParams()
+	switch len(params) {
+	case 0:
 		return "_, _, errno := "
+	case 1:
+		return "r0, _, errno := "
+	case 2:
+		return "r0, r1, errno := "
+	default:
+		log.Fatalf(
+			"can accept 2 return values max: got %d\n",
+			len(params),
+		)
+		return "unreachable"
 	}
-	retvar := "r0"
-	if r.Name == "" {
-		retvar = "r1"
-	}
-	
-	return fmt.Sprintf("%s, _, errno := ", retvar)
-}
-
-func (r *Rets) useLongHandleErrorCode(retvar string) string {
-	const code = `if %s {
-		err = errnoErr(e1)
-	}`
-	cond := retvar + " == 0"
-	if r.FailCond != "" {
-		cond = strings.Replace(r.FailCond, "failretval", retvar, 1)
-	}
-	return fmt.Sprintf(code, cond)
 }
 
 // SetErrorCode returns source code that sets return parameters.
 func (r *Rets) SetErrorCode() string {
-	const code = `if r0 != 0 {
-		%s = %sErrno(r0)
-	}`
-	const ntstatus = `if r0 != 0 {
-		ntstatus = %sNTStatus(r0)
-	}`
 	const checkerrno = `if errno != windows.NOERROR {
 		err = errno
 	}`
-	
-	if r.Name == "" && !r.ReturnsError {
+	params := r.ToParams()
+
+	if len(params) == 0 {
 		return checkerrno
 	}
-	if r.Name == "" {
-		return r.useLongHandleErrorCode("r1")
-	}
-	if r.Type == "error" && r.Name == "ntstatus" {
-		return fmt.Sprintf(ntstatus, windowsdot())
-	}
-	if r.Type == "error" {
-		return fmt.Sprintf(code, r.Name, syscalldot())
-	}
-	
-	s := ""
-	switch {
-	case r.Type[0] == '*':
-		s = fmt.Sprintf("%s = (%s)(unsafe.Pointer(r0))", r.Name, r.Type)
-	case r.Type == "bool":
-		s = fmt.Sprintf("%s = r0 != 0", r.Name)
-	default:
-		s = fmt.Sprintf("%s = %s(r0)", r.Name, r.Type)
+
+	a := make([]string, 0, len(params))
+	for i, p := range params {
+		s := ""
+		switch {
+		case p.Type[0] == '*':
+			s = fmt.Sprintf("%s = (%s)(unsafe.Pointer(r%d))", p.Name, p.Type, i)
+		case p.Type == "bool":
+			s = fmt.Sprintf("%s = r%d != 0", p.Name, i)
+		default:
+			s = fmt.Sprintf("%s = %s(r%d)", p.Name, p.Type, i)
+		}
+		a = append(a, s)
 	}
 
-	return s + "\n" + checkerrno
-	/* if !r.ReturnsError {
-		return s
-	}
-	return s + "\n\t" + r.useLongHandleErrorCode(r.Name) */
+	return strings.Join(a, "\n") + "\n" + checkerrno
 }
