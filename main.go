@@ -65,29 +65,7 @@ var (
 	printTraceFlag = flag.Bool("trace", false, "generate print statement after every syscall")
 )
 
-func trim(s string) string {
-	return strings.Trim(s, " \t")
-}
-
 var packageName string
-
-func packagename() string {
-	return packageName
-}
-
-func windowsdot() string {
-	if packageName == "windows" {
-		return ""
-	}
-	return "windows."
-}
-
-func syscalldot() string {
-	if packageName == "syscall" {
-		return ""
-	}
-	return "syscall."
-}
 
 // join concatenates parameters ps into a string with sep separator.
 // Each parameter is converted into string by applying fn to it
@@ -106,10 +84,11 @@ func join[T any](ps []T, fn func(T) string, sep string) string {
 // Generate output source file from a source set src.
 func (src *Source) Generate(w io.Writer) error {
 	funcMap := template.FuncMap{
-		"packagename": packagename,
-		"syscalldot":  syscalldot,
+		"packagename": func() string {
+			return packageName
+		},
 		"newlazydll": func(dll string) string {
-			return syscalldot() + "NewLazyDLL(\"" + dll + ".dll\")"
+			return "syscall.NewLazyDLL(\"" + dll + ".dll\")"
 		},
 	}
 	t := template.Must(template.New("main").Funcs(funcMap).Parse(srcTemplate))
@@ -205,6 +184,7 @@ var (
 )
 
 {{range .Funcs}}
+	{{template "retstruct" .}}
 	{{template "funcbody" .}}
 	{{template "helperbody" .}}
 {{end}}
@@ -223,6 +203,12 @@ var (
 	proc{{.DLLFuncName}} = mod{{.DLLVar}}.NewProc("_{{.DLLFuncName}}")
 {{end}}{{end}}
 
+{{define "retstruct"}}
+type _ret{{.DLLFuncName}} struct {
+	{{.Rets.RetStructList}}
+}
+{{end}}
+
 {{define "funcbody"}}
 func {{.DLLFuncName}}({{.ParamList}}) {{.Rets.List}} {
 	{{template "syscall" .}}
@@ -235,13 +221,15 @@ func {{.DLLFuncName}}({{.ParamList}}) {{.Rets.List}} {
 {{define "helperbody"}}
 //export _{{.DLLFuncName}}
 func _{{.DLLFuncName}}({{.HelperParamList}}) {{.Rets.HelperList}} {
-	{{.HelperCallResultList}} := {{.Name}}({{.HelperCallParamList}})
-	{{.HelperCallResultResolv}}
+	{{.HelperCallResultList}} = {{.Name}}({{.HelperCallParamList}})
 	return 
 }
 {{end}}
 
-{{define "syscall"}}{{.Rets.SetReturnValuesCode}}{{syscalldot}}SyscallN(proc{{.DLLFuncName}}.Addr(), {{.SyscallParamList}}){{end}}
+{{define "syscall"}}
+_r := new(_ret{{.DLLFuncName}})
+{{.Rets.SetReturnValuesCode}} proc{{.DLLFuncName}}.Call(uintptr(unsafe.Pointer(_r)), {{.SyscallParamList}})
+{{end}}
 
 {{define "printtrace"}}
 {{if .PrintTrace}}

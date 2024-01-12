@@ -25,7 +25,7 @@ type ret struct {
 }
 
 func PrintDLL(msg *message) (n int, err error) {
-	u := new(ret)
+	_r := new(ret)
 	r0, _, errno := procPrintDLL.Call(uintptr(unsafe.Pointer(u)), uintptr(unsafe.Pointer(msg)))
 	
 	if errno != windows.NOERROR {
@@ -37,7 +37,6 @@ func PrintDLL(msg *message) (n int, err error) {
 		return
 	}
 
-	// procPrintDLLres := (*ret)(unsafe.Pointer(r0))
 	n = u.r0
 	err = u.r1
 	return

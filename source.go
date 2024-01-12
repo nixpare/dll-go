@@ -94,7 +94,7 @@ func (src *Source) ParseFile(path string) error {
 
 	s := bufio.NewScanner(file)
 	for s.Scan() {
-		t := trim(s.Text())
+		t := strings.TrimSpace(s.Text())
 		if len(t) < 7 {
 			continue
 		}

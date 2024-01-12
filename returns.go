@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"strings"
 )
 
@@ -18,6 +17,14 @@ func (r *Rets) ToParams() []ret {
 	params := make([]ret, len(*r))
 	copy(params, *r)
 	return params
+}
+
+func (r *Rets) RetStructList() string {
+	a := make([]string, 0, len(*r))
+	for i, x := range r.ToParams() {
+		a = append(a, fmt.Sprintf("r%d %s", i, x.Type))
+	}
+	return strings.Join(a, "\n")
 }
 
 // List returns source code of syscall return parameters.
@@ -44,7 +51,7 @@ func (r *Rets) HelperList() string {
 		return ""
 	}
 	
-	s := join(params, func(x ret) string { return x.Name + " uintptr" }, ", ")
+	s := join(params, func(x ret) string { return x.Name + " " + x.Type }, ", ")
 	return "(" + s + ")"
 }
 
@@ -55,16 +62,8 @@ func (r *Rets) SetReturnValuesCode() string {
 	switch len(params) {
 	case 0:
 		return "_, _, errno := "
-	case 1:
-		return "r0, _, errno := "
-	case 2:
-		return "r0, r1, errno := "
 	default:
-		log.Fatalf(
-			"can accept 2 return values max: got %d\n",
-			len(params),
-		)
-		return "unreachable"
+		return "r0, _, errno := "
 	}
 }
 
@@ -72,6 +71,11 @@ func (r *Rets) SetReturnValuesCode() string {
 func (r *Rets) SetErrorCode() string {
 	const checkerrno = `if errno != windows.NOERROR {
 		err = errno
+		return
+	}
+	if r0 == 0 {
+		err = syscall.Errno(1)
+		return
 	}`
 	params := r.ToParams()
 
@@ -79,17 +83,10 @@ func (r *Rets) SetErrorCode() string {
 		return checkerrno
 	}
 
-	a := make([]string, 0, len(params))
+	a := make([]string, 0, len(*r))
 	for i, p := range params {
-		s := fmt.Sprintf("%s)(unsafe.Pointer(r%d))", p.Type, i)
-		if !strings.HasPrefix(p.Type, "*") {
-			s = "*(*" + s
-		} else {
-			s = "(" + s
-		}
-		s = p.Name + " = " + s
-		a = append(a, s)
+		a = append(a, fmt.Sprintf("%s = _r.r%d", p.Name, i))
 	}
 
-	return strings.Join(a, "\n") + "\n" + checkerrno
+	return checkerrno + "\n" + strings.Join(a, "\n")
 }

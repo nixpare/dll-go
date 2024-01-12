@@ -33,7 +33,7 @@ func main() {
 	fmt.Println(PrintDLL(msg))
 }
 
-//dll Print(msg *message) (n int, b error) = ./hello-world.dll
+//dll Print(msg *message) (n int, err error) = ./hello-world.dll
 func Print(msg *message) (int, error) {
 	n, _ := fmt.Printf(
 		"%s, you received a message from %s at %v\n%s\n",

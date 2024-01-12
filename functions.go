@@ -20,16 +20,36 @@ type Fn struct {
 	// curTmpVarIdx int // insure tmp variables have uniq names
 }
 
+// Param is function parameter
+type Param struct {
+	Name      string
+	Type      string
+	fn        *Fn
+}
+
+// SyscallArgList returns source code fragments representing p parameter
+// in syscall. Slices are translated into 2 syscall parameters: pointer to
+// the first element and length.
+func (p *Param) SyscallArg() string {
+	var arg string
+	if !strings.HasPrefix(p.Type, "*") {
+		arg = "&"
+	}
+	arg += p.Name
+
+	return "uintptr(unsafe.Pointer(" + arg + "))"
+}
+
 // extractParams parses s to extract function parameters.
 func extractParams(s string, f *Fn) ([]*Param, error) {
-	s = trim(s)
+	s = strings.TrimSpace(s)
 	if s == "" {
 		return nil, nil
 	}
 	a := strings.Split(s, ",")
 	ps := make([]*Param, len(a))
 	for i := range ps {
-		s2 := trim(a[i])
+		s2 := strings.TrimSpace(a[i])
 		b := strings.Split(s2, " ")
 		if len(b) != 2 {
 			b = strings.Split(s2, "\t")
@@ -37,10 +57,15 @@ func extractParams(s string, f *Fn) ([]*Param, error) {
 				return nil, errors.New("Could not extract function parameter from \"" + s2 + "\"")
 			}
 		}
+
 		ps[i] = &Param{
-			Name:      trim(b[0]),
-			Type:      trim(b[1]),
+			Name:      strings.TrimSpace(b[0]),
+			Type:      strings.TrimSpace(b[1]),
 			fn:        f,
+		}
+
+		if index := strings.LastIndex(b[1], "."); index != -1 {
+			 b[1][:index]
 		}
 	}
 	return ps, nil
@@ -50,7 +75,7 @@ func extractParams(s string, f *Fn) ([]*Param, error) {
 // and ending just before end. found return value will indicate success,
 // and prefix, body and suffix will contain correspondent parts of string s.
 func extractSection(s string, start, end rune) (prefix, body, suffix string, found bool) {
-	s = trim(s)
+	s = strings.TrimSpace(s)
 	if strings.HasPrefix(s, string(start)) {
 		// no prefix
 		body = s[1:]
@@ -71,7 +96,7 @@ func extractSection(s string, start, end rune) (prefix, body, suffix string, fou
 
 // newFn parses string s and return created function Fn.
 func newFn(s string) (*Fn, error) {
-	s = trim(s)
+	s = strings.TrimSpace(s)
 	f := &Fn{
 		Rets:       new(Rets),
 		src:        s,
@@ -88,6 +113,7 @@ func newFn(s string) (*Fn, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// return values
 	_, body, s, found = extractSection(s, '(', ')')
 	if found {
@@ -106,14 +132,14 @@ func newFn(s string) (*Fn, error) {
 	}
 	
 	// dll and dll function names
-	s = trim(s)
+	s = strings.TrimSpace(s)
 	if s == "" {
 		return f, nil
 	}
 	if !strings.HasPrefix(s, "=") {
 		return nil, errors.New("Could not extract dll name from \"" + f.src + "\"")
 	}
-	s = trim(s[1:])
+	s = strings.TrimSpace(s[1:])
 	if i := strings.LastIndex(s, "."); i >= 0 {
 		f.dllname = s[:i]
 		f.dllfuncname = s[i+1:]
@@ -201,17 +227,7 @@ func (f *Fn) HelperCallParamList() string {
 func (f *Fn) HelperCallResultList() string {
 	a := make([]string, 0, len(*f.Rets))
 	for _, p := range f.Rets.ToParams() {
-		a = append(a, "_" + p.Name)
+		a = append(a, p.Name)
 	}
 	return strings.Join(a, ", ")
-}
-
-// HelperCallResultResolv
-func (f *Fn) HelperCallResultResolv() string {
-	a := make([]string, 0, len(*f.Rets))
-	for _, p := range f.Rets.ToParams() {
-		s := fmt.Sprintf("%s = uintptr(unsafe.Pointer(&_%s))", p.Name, p.Name)
-		a = append(a, s)
-	}
-	return strings.Join(a, "\n")
 }
