@@ -18,10 +18,10 @@ var (
 	procPrintDLL = modprint.NewProc("_PrintDLL")
 )
 
-func PrintDLL(s string) (n int, echo string, err error) {
+func PrintDLL(s string) (n int, echo *string, err error) {
 	r0, r1, errno := syscall.SyscallN(procPrintDLL.Addr(), uintptr(unsafe.Pointer(&s)))
-	n = int(r0)
-	echo = string(r1)
+	n = *(*int)(unsafe.Pointer(r0))
+	echo = (*string)(unsafe.Pointer(r1))
 	if errno != windows.NOERROR {
 		err = errno
 	}
@@ -30,6 +30,9 @@ func PrintDLL(s string) (n int, echo string, err error) {
 }
 
 //export _PrintDLL
-func _PrintDLL(s *string) (n int, echo string) {
-	return Print(*s)
+func _PrintDLL(s uintptr) (n uintptr, echo uintptr) {
+	_n, _echo := Print(*(*string)(unsafe.Pointer(s)))
+	n = uintptr(unsafe.Pointer(&_n))
+	echo = uintptr(unsafe.Pointer(&_echo))
+	return
 }

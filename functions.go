@@ -17,7 +17,7 @@ type Fn struct {
 	dllfuncname string
 	src         string
 	// TODO: get rid of this field and just use parameter index instead
-	curTmpVarIdx int // insure tmp variables have uniq names
+	// curTmpVarIdx int // insure tmp variables have uniq names
 }
 
 // extractParams parses s to extract function parameters.
@@ -41,7 +41,6 @@ func extractParams(s string, f *Fn) ([]*Param, error) {
 			Name:      trim(b[0]),
 			Type:      trim(b[1]),
 			fn:        f,
-			tmpVarIdx: -1,
 		}
 	}
 	return ps, nil
@@ -167,22 +166,9 @@ func (f *Fn) ParamList() string {
 func (f *Fn) HelperParamList() string {
 	a := make([]string, 0, len(f.Params))
 	for _, p := range f.Params {
-		var s string
-		s += p.Name + " "
-		if !strings.HasPrefix(p.Type, "*") {
-			s += "*"
-		}
-		s += p.Type
-
-		a = append(a, s)
+		a = append(a, p.Name + " uintptr")
 	}
 	return strings.Join(a, ", ")
-}
-
-// ParamPrintList returns source code of trace printing part correspondent
-// to syscall input parameters.
-func (f *Fn) ParamPrintList() string {
-	return join(f.Params, func(p *Param) string { return fmt.Sprintf(`"%s=", %s, `, p.Name, p.Name) }, `", ", `)
 }
 
 // SyscallParamList returns source code for SyscallX parameters for function f.
@@ -199,12 +185,33 @@ func (f *Fn) SyscallParamList() string {
 func (f *Fn) HelperCallParamList() string {
 	a := make([]string, 0, len(f.Params))
 	for _, p := range f.Params {
-		s := p.Name
+		s := fmt.Sprintf("%s)(unsafe.Pointer(%s))", p.Type, p.Name)
 		if !strings.HasPrefix(p.Type, "*") {
-			s = "*" + s
+			s = "*(*" + s
+		} else {
+			s = "(" + s
 		}
 
 		a = append(a, s)
 	}
 	return strings.Join(a, ", ")
+}
+
+// HelperCallResultList
+func (f *Fn) HelperCallResultList() string {
+	a := make([]string, 0, len(*f.Rets))
+	for _, p := range f.Rets.ToParams() {
+		a = append(a, "_" + p.Name)
+	}
+	return strings.Join(a, ", ")
+}
+
+// HelperCallResultResolv
+func (f *Fn) HelperCallResultResolv() string {
+	a := make([]string, 0, len(*f.Rets))
+	for _, p := range f.Rets.ToParams() {
+		s := fmt.Sprintf("%s = uintptr(unsafe.Pointer(&_%s))", p.Name, p.Name)
+		a = append(a, s)
+	}
+	return strings.Join(a, "\n")
 }

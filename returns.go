@@ -44,7 +44,7 @@ func (r *Rets) HelperList() string {
 		return ""
 	}
 	
-	s := join(params, func(x ret) string { return x.Name + " " + x.Type }, ", ")
+	s := join(params, func(x ret) string { return x.Name + " uintptr" }, ", ")
 	return "(" + s + ")"
 }
 
@@ -81,15 +81,13 @@ func (r *Rets) SetErrorCode() string {
 
 	a := make([]string, 0, len(params))
 	for i, p := range params {
-		s := ""
-		switch {
-		case p.Type[0] == '*':
-			s = fmt.Sprintf("%s = (%s)(unsafe.Pointer(r%d))", p.Name, p.Type, i)
-		case p.Type == "bool":
-			s = fmt.Sprintf("%s = r%d != 0", p.Name, i)
-		default:
-			s = fmt.Sprintf("%s = %s(r%d)", p.Name, p.Type, i)
+		s := fmt.Sprintf("%s)(unsafe.Pointer(r%d))", p.Type, i)
+		if !strings.HasPrefix(p.Type, "*") {
+			s = "*(*" + s
+		} else {
+			s = "(" + s
 		}
+		s = p.Name + " = " + s
 		a = append(a, s)
 	}
 

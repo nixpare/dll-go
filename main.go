@@ -224,7 +224,7 @@ var (
 {{end}}{{end}}
 
 {{define "funcbody"}}
-func {{.DLLFuncName}}({{.ParamList}}) {{template "results" .}} {
+func {{.DLLFuncName}}({{.ParamList}}) {{.Rets.List}} {
 	{{template "syscall" .}}
 	{{.Rets.SetErrorCode}}
 	{{template "printtrace" .}}
@@ -234,14 +234,12 @@ func {{.DLLFuncName}}({{.ParamList}}) {{template "results" .}} {
 
 {{define "helperbody"}}
 //export _{{.DLLFuncName}}
-func _{{.DLLFuncName}}({{.HelperParamList}}) {{template "helperresults" .}} {
-	return {{.Name}}({{.HelperCallParamList}})
+func _{{.DLLFuncName}}({{.HelperParamList}}) {{.Rets.HelperList}} {
+	{{.HelperCallResultList}} := {{.Name}}({{.HelperCallParamList}})
+	{{.HelperCallResultResolv}}
+	return 
 }
 {{end}}
-
-{{define "results"}}{{if .Rets.List}}{{.Rets.List}} {{end}}{{end}}
-
-{{define "helperresults"}}{{if .Rets.List}}{{.Rets.HelperList}} {{end}}{{end}}
 
 {{define "syscall"}}{{.Rets.SetReturnValuesCode}}{{syscalldot}}SyscallN(proc{{.DLLFuncName}}.Addr(), {{.SyscallParamList}}){{end}}
 

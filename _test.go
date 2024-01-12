@@ -2,12 +2,12 @@
 package main
 
 func main() {
-	fmt.Println(Print("Hello, World!"))
+	fmt.Println(Print("Hello, World!" ))
 	fmt.Println(PrintDLL("Hello, World! (from dll)"))
 }
 
-//dll Print(s string) (n int, echo string) = ./print.dll
-func Print(s string) int {
-	n, _ := fmt.Println(s)
-	return n
+//dll Print(s string) (n int, echo *string) = ./print.dll
+func Print(msg message) (int, error) {
+	n, _ := fmt.Println(msg.m)
+	return n, nil
 }
