@@ -1,13 +1,43 @@
-//go:generate dll-go -output _test-dll.go _test.go
+//go:generate dll-go -output hello-world-dll.go main.go
+//go:generate go build -o hello-world.dll -buildmode=c-shared .
 package main
 
-func main() {
-	fmt.Println(Print("Hello, World!" ))
-	fmt.Println(PrintDLL("Hello, World! (from dll)"))
+import (
+	"errors"
+	"fmt"
+	"time"
+)
+
+type message struct {
+	sender string
+	receiver string
+	date time.Time
+	msg string
+	err error
 }
 
-//dll Print(s string) (n int, echo *string) = ./print.dll
-func Print(msg message) (int, error) {
-	n, _ := fmt.Println(msg.m)
-	return n, nil
+func main() {
+	msg := &message{
+		sender: "Ale",
+		receiver: "Eli",
+		date: time.Now(),
+		msg: "Ciao eli",
+	}
+	fmt.Println(Print(msg))
+
+	msg.sender = "Eli"
+	msg.receiver = "Ale"
+	msg.msg = "Ciao, come stai?"
+	msg.date = time.Now()
+	msg.err = errors.New("ERRORE")
+	fmt.Println(PrintDLL(msg))
+}
+
+//dll Print(msg *message) (n int, b error) = ./hello-world.dll
+func Print(msg *message) (int, error) {
+	n, _ := fmt.Printf(
+		"%s, you received a message from %s at %v\n%s\n",
+		msg.receiver, msg.sender, msg.date, msg.msg,
+	)
+	return n, msg.err
 }

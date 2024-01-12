@@ -5,6 +5,7 @@ package main
 import "C"
 import (
 	"syscall"
+
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -13,25 +14,36 @@ import (
 var _ unsafe.Pointer
 
 var (
-	modprint = syscall.NewLazyDLL("./print.dll")
+	modhello_world = syscall.NewLazyDLL("./hello-world.dll")
 
-	procPrintDLL = modprint.NewProc("_PrintDLL")
+	procPrintDLL = modhello_world.NewProc("_PrintDLL")
 )
 
-func PrintDLL(s string) (n int, echo *string, err error) {
-	r0, r1, errno := procPrintDLL.Call(uintptr(unsafe.Pointer(&s)))
-	n = *(*int)(unsafe.Pointer(r0))
-	echo = (*string)(unsafe.Pointer(r1))
+type ret struct {
+	r0 int
+	r1 error
+}
+
+func PrintDLL(msg *message) (n int, err error) {
+	u := new(ret)
+	r0, _, errno := procPrintDLL.Call(uintptr(unsafe.Pointer(u)), uintptr(unsafe.Pointer(msg)))
+	
 	if errno != windows.NOERROR {
 		err = errno
+		return
 	}
+	if r0 == 0 {
+		err = syscall.Errno(1)
+		return
+	}
+
+	// procPrintDLLres := (*ret)(unsafe.Pointer(r0))
+	n = u.r0
+	err = u.r1
 	return
 }
 
 //export _PrintDLL
-func _PrintDLL(s uintptr) (n uintptr, echo uintptr) {
-	_n, _echo := Print(*(*string)(unsafe.Pointer(s)))
-	n = uintptr(unsafe.Pointer(&_n))
-	echo = uintptr(unsafe.Pointer(&_echo))
-	return
+func _PrintDLL(msg uintptr) (n int, err error) {
+	return Print((*message)(unsafe.Pointer(msg)))
 }
