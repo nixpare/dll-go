@@ -92,7 +92,7 @@ func syscalldot() string {
 // join concatenates parameters ps into a string with sep separator.
 // Each parameter is converted into string by applying fn to it
 // before conversion.
-func join(ps []*Param, fn func(*Param) string, sep string) string {
+func join[T any](ps []T, fn func(T) string, sep string) string {
 	if len(ps) == 0 {
 		return ""
 	}

@@ -74,7 +74,7 @@ func extractSection(s string, start, end rune) (prefix, body, suffix string, fou
 func newFn(s string) (*Fn, error) {
 	s = trim(s)
 	f := &Fn{
-		Rets:       &Rets{},
+		Rets:       new(Rets),
 		src:        s,
 		PrintTrace: *printTraceFlag,
 	}
@@ -96,31 +96,16 @@ func newFn(s string) (*Fn, error) {
 		if err != nil {
 			return nil, err
 		}
-		switch len(r) {
-		case 0:
-		case 1:
-			if r[0].IsError() {
-				f.Rets.ReturnsError = true
-			} else {
-				f.Rets.Name = r[0].Name
-				f.Rets.Type = r[0].Type
-			}
-		case 2:
-			if !r[1].IsError() {
-				return nil, errors.New("Only last windows error is allowed as second return value in \"" + f.src + "\"")
-			}
-			f.Rets.ReturnsError = true
-			f.Rets.Name = r[0].Name
-			f.Rets.Type = r[0].Type
-		default:
+
+		if len(r) > 2 {
 			return nil, errors.New("Too many return values in \"" + f.src + "\"")
 		}
+
+		for _, x := range r {
+			*f.Rets = append(*f.Rets, ret{ Name: x.Name, Type: x.Type })
+		}
 	}
-	// fail condition
-	_, body, s, found = extractSection(s, '[', ']')
-	if found {
-		f.Rets.FailCond = body
-	}
+	
 	// dll and dll function names
 	s = trim(s)
 	if s == "" {
@@ -139,10 +124,7 @@ func newFn(s string) (*Fn, error) {
 	if f.dllfuncname == "" {
 		return nil, fmt.Errorf("function name is not specified in %q", s)
 	}
-	if n := f.dllfuncname; strings.HasSuffix(n, "?") {
-		f.dllfuncname = n[:len(n)-1]
-		f.Rets.fnMaybeAbsent = true
-	}
+	
 	return f, nil
 }
 
